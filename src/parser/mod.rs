@@ -1729,14 +1729,7 @@ impl<'a> Parser<'a> {
             _ => self.expected_at("an expression", next_token_index),
         }?;
 
-        if !self.in_column_definition_state() && self.parse_keyword(Keyword::COLLATE) {
-            Ok(Expr::Collate {
-                expr: Box::new(expr),
-                collation: self.parse_object_name(false)?,
-            })
-        } else {
-            Ok(expr)
-        }
+        Ok(expr)
     }
 
     fn parse_geometric_type(&mut self, kind: GeometricTypeKind) -> Result<Expr, ParserError> {
@@ -3634,6 +3627,13 @@ impl<'a> Parser<'a> {
                     Ok(Expr::AtTimeZone {
                         timestamp: Box::new(expr),
                         time_zone: Box::new(self.parse_subexpr(precedence)?),
+                    })
+                }
+                Keyword::COLLATE => {
+                    let collation = self.parse_object_name(false)?;
+                    Ok(Expr::Collate {
+                        expr: Box::new(expr),
+                        collation,
                     })
                 }
                 Keyword::NOT

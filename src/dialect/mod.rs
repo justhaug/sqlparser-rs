@@ -673,6 +673,14 @@ pub trait Dialect: Debug + Any {
                 }
             }
 
+            Token::Word(w) if w.keyword == Keyword::COLLATE => {
+                if parser.in_column_definition_state() {
+                    Ok(self.prec_unknown())
+                } else {
+                    Ok(p!(DoubleColon))
+                }
+            }
+
             Token::Word(w) if w.keyword == Keyword::NOT => match parser.peek_nth_token(1).token {
                 // The precedence of NOT varies depending on keyword that
                 // follows it. If it is followed by IN, BETWEEN, or LIKE,

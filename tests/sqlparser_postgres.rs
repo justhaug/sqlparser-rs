@@ -2485,6 +2485,55 @@ fn parse_array_multi_subscript() {
 }
 
 #[test]
+fn parse_collate_with_field_access_precedence() {
+    let sql =
+        "(dg_record.field_5 is null and ui.value != '') or (ui.value collate Binary) != (dg_record.field_5 collate Binary)";
+    let canonical =
+        "(dg_record.field_5 IS NULL AND ui.value <> '') OR (ui.value COLLATE Binary) <> (dg_record.field_5 COLLATE Binary)";
+    fn collate_identifier(expr: Expr) -> Vec<Ident> {
+        match expr {
+            Expr::Collate { expr, .. } => match *expr {
+                Expr::CompoundIdentifier(idents) => idents,
+                other => panic!("expected compound identifier inside COLLATE, got {other:?}"),
+            },
+            Expr::Nested(inner) => collate_identifier(*inner),
+            other => panic!("expected COLLATE expression, got {other:?}"),
+        }
+    }
+
+    let expr = pg().expr_parses_to(sql, canonical);
+    let Expr::BinaryOp {
+        left: _,
+        op: BinaryOperator::Or,
+        right,
+    } = expr
+    else {
+        panic!("expected an OR expression");
+    };
+
+    let Expr::BinaryOp {
+        left: left_collate,
+        op: BinaryOperator::NotEq,
+        right: right_collate,
+    } = *right
+    else {
+        panic!("expected a NOT EQUAL comparison");
+    };
+
+    let left_idents = collate_identifier(*left_collate);
+    assert_eq!(
+        left_idents,
+        vec![Ident::new("ui"), Ident::new("value")]
+    );
+
+    let right_idents = collate_identifier(*right_collate);
+    assert_eq!(
+        right_idents,
+        vec![Ident::new("dg_record"), Ident::new("field_5")]
+    );
+}
+
+#[test]
 fn parse_create_index() {
     let sql = "CREATE INDEX IF NOT EXISTS my_index ON my_table(col1, col2)";
     match pg().verified_stmt(sql) {
